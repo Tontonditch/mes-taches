@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#172b4d"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Mes tâches</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{--navy:#172b4d;--blue:#315c9b;--bg:#f4f6fa;--card:#fff;--muted:#68758a;--line:#e4e9f0;--green:#21845b;--red:#b54747}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;padding-bottom:92px}
+header{background:var(--navy);color:white;padding:calc(env(safe-area-inset-top) + 18px) 20px 22px;border-radius:0 0 24px 24px}
+h1{font-size:27px;margin:0 0 5px}.sub{opacity:.78;font-size:14px}
+main{max-width:720px;margin:auto;padding:16px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:-2px}
+.stat,.panel,.task{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.stat strong{display:block;font-size:23px;color:var(--navy)}.stat span,.muted{color:var(--muted);font-size:12px}
+.panel{margin-top:14px}.composer textarea{width:100%;min-height:76px;border:1px solid var(--line);border-radius:12px;padding:12px;font:inherit;resize:vertical;background:#fbfcfe}
+.actions{display:flex;gap:8px;margin-top:9px}.btn{border:0;border-radius:12px;padding:12px 14px;font-weight:650;font-size:14px;background:var(--navy);color:white}.btn.secondary{background:#edf1f7;color:var(--navy)}.btn.mic{background:#e9f0fb;color:var(--blue)}
+button{cursor:pointer}.full{flex:1}
+.tabs{display:flex;gap:7px;margin:16px 0;overflow:auto}.tab{border:1px solid var(--line);background:white;border-radius:999px;padding:9px 13px;white-space:nowrap;color:var(--muted)}.tab.active{background:var(--navy);color:white;border-color:var(--navy)}
+.task{display:flex;gap:11px;align-items:flex-start;margin:9px 0}.check{width:23px;height:23px;accent-color:var(--green);margin-top:2px;flex-shrink:0}.taskbody{flex:1;min-width:0}.tasktitle{font-weight:650;line-height:1.35}.done .tasktitle{text-decoration:line-through;color:#8b95a5}.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:6px;color:var(--muted);font-size:12px}.pill{background:#f0f3f8;border-radius:999px;padding:4px 8px}.overdue{color:var(--red);font-weight:650}.tasktools{display:flex;gap:5px}.iconbtn{border:0;background:transparent;color:#65748b;font-size:18px;padding:2px}
+h2{font-size:17px;margin:18px 2px 8px}.empty{text-align:center;color:var(--muted);padding:28px 10px}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:10px 6px calc(env(safe-area-inset-bottom) + 8px);z-index:5}
+nav button{border:0;background:none;color:var(--muted);font-size:12px;padding:5px 12px}nav button.active{color:var(--navy);font-weight:700}
+dialog{border:0;border-radius:20px;width:min(94vw,520px);padding:20px;box-shadow:0 20px 70px #10203a44}dialog::backdrop{background:#101b2b77}
+.field{margin:12px 0}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit;background:white}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.right{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+.small{font-size:12px;color:var(--muted);line-height:1.5}.projectrow{padding:12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+</style></head>
+<body>
+<header><h1>Mes tâches</h1><div class="sub" id="todayLabel">Garde l'esprit libre.</div></header>
+<main>
+<section class="stats"><div class="stat"><strong id="countOpen">0</strong><span>À faire</span></div><div class="stat"><strong id="countLate">0</strong><span>En retard</span></div><div class="stat"><strong id="countDone">0</strong><span>Terminées</span></div></section>
+<section id="homeView">
+<div class="panel composer">
+<strong>Ajouter rapidement</strong>
+<p class="muted">Écris ou dicte naturellement. Exemple : « Acheter du fromage pour le souper cousa le 30 avril ».</p>
+<textarea id="quickText" placeholder="Qu'est-ce que tu dois faire ?"></textarea>
+<div class="actions"><button class="btn mic" id="focusDictation" type="button">🎙 Dictée iPhone</button><button class="btn full" id="addQuick" type="button">Ajouter la tâche</button></div>
+<div class="small" style="margin-top:8px">Astuce : touche le champ puis le micro du clavier Apple pour dicter. La dictée du clavier fonctionne directement dans Safari.</div>
+</div>
+<div class="tabs" id="filters"><button class="tab active" data-filter="all">Toutes</button><button class="tab" data-filter="today">Aujourd'hui</button><button class="tab" data-filter="upcoming">À venir</button><button class="tab" data-filter="late">En retard</button><button class="tab" data-filter="done">Terminées</button></div>
+<h2 id="listTitle">Mes tâches</h2><div id="taskList"></div>
+</section>
+<section id="projectsView" hidden><h2>Mes projets</h2><div class="panel"><div class="field"><label>Nouveau projet</label><div class="actions"><input id="newProject" placeholder="Ex. Souper cousa" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px"><button class="btn" id="addProject">Créer</button></div></div><div id="projectList"></div></div></section>
+<section id="settingsView" hidden><h2>Réglages et sauvegarde</h2><div class="panel"><p>Les tâches de cette première version sont enregistrées sur cet iPhone, dans le stockage local du navigateur.</p><p class="small">Pour éviter toute perte, exporte régulièrement une sauvegarde JSON. La synchronisation en ligne et les notifications planifiées nécessiteront une prochaine étape avec un service sécurisé.</p><div class="actions"><button class="btn full" id="exportData">Exporter mes tâches</button><button class="btn secondary full" id="importBtn">Importer</button><input id="importFile" type="file" accept="application/json" hidden></div><p class="small" id="backupStatus"></p></div></section>
+</main>
+<nav><button class="active" data-view="homeView">☑️<br>Mes tâches</button><button data-view="projectsView">▦<br>Projets</button><button data-view="settingsView">⚙️<br>Réglages</button></nav>
+<dialog id="editDialog"><form method="dialog" id="editForm"><h2 id="dialogTitle">Détail de la tâche</h2><input type="hidden" id="taskId">
+<div class="field"><label>Tâche</label><input id="taskTitle" required></div>
+<div class="grid2"><div class="field"><label>Échéance</label><input id="taskDate" type="date"></div><div class="field"><label>Priorité</label><select id="taskPriority"><option value="normal">Normale</option><option value="high">Haute</option><option value="low">Basse</option></select></div></div>
+<div class="grid2"><div class="field"><label>Catégorie</label><select id="taskCategory"><option>Personnel</option><option>Maison</option><option>Achats</option><option>Voyages</option><option>Famille</option><option>Autres</option></select></div><div class="field"><label>Projet</label><input id="taskProject" list="projectOptions" placeholder="Ex. Souper cousa"><datalist id="projectOptions"></datalist></div></div>
+<div class="field"><label>Remarques</label><textarea id="taskNotes" rows="3" placeholder="Détails, adresse, choses à ne pas oublier…"></textarea></div>
+<div class="field"><label>Sous-tâches (une par ligne)</label><textarea id="taskSubs" rows="3" placeholder="Appeler le magasin&#10;Comparer les prix"></textarea></div>
+<div class="right"><button class="btn secondary" value="cancel">Annuler</button><button class="btn" id="saveTask" value="save">Enregistrer</button></div></form></dialog>
+<script>
+const KEY='mes-taches-v1';
+let data=load(),filter='all',currentView='homeView';
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||{tasks:[],projects:[]}}catch{return {tasks:[],projects:[]}}}
+function persist(){localStorage.setItem(KEY,JSON.stringify(data));render()}
+function id(){return crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())}
+function today(){return new Date().toLocaleDateString('en-CA')}
+function niceDate(s){if(!s)return '';return new Date(s+'T12:00:00').toLocaleDateString('fr-BE',{day:'numeric',month:'short',year:'numeric'})}
+function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function parseNatural(raw){
+ let title=raw.trim(),date='';
+ // Dates explicites simples : aujourd'hui, demain, ou jj/mm(/aaaa)
+ const now=new Date(); let m;
+ if((m=title.match(/\b(aujourd'hui|aujourd’hui)\b/i))){date=today();title=title.replace(m[0],'')}
+ else if((m=title.match(/\bdemain\b/i))){let d=new Date();d.setDate(d.getDate()+1);date=d.toLocaleDateString('en-CA');title=title.replace(m[0],'')}
+ else if((m=title.match(/\b(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{4}))?\b/))){let y=Number(m[3]||now.getFullYear()),mo=Number(m[2]),day=Number(m[1]);let d=new Date(y,mo-1,day);if(!m[3]&&d<new Date(now.getFullYear(),now.getMonth(),now.getDate()))d.setFullYear(y+1);date=d.toLocaleDateString('en-CA');title=title.replace(m[0],'')}
+ else if((m=title.match(/\ble (\d{1,2})\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)\b/i))){const months=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];let y=now.getFullYear(),mo=months.indexOf(m[2].toLowerCase());let d=new Date(y,mo,Number(m[1]));if(d<new Date(now.getFullYear(),now.getMonth(),now.getDate()))d.setFullYear(y+1);date=d.toLocaleDateString('en-CA');title=title.replace(m[0],'')}
+ title=title.replace(/\s{2,}/g,' ').replace(/\s+([,.!?])/g,'$1').trim().replace(/[,.]$/,'');
+ // Heuristique projet après "pour le/la" (conservée dans le titre, pas de classement forcé)
+ return {title:title||raw.trim(),date};
+}
+function addQuick(){
+ const raw=document.getElementById('quickText').value.trim();if(!raw)return;
+ const p=parseNatural(raw);let category='Autres';
+ if(/acheter|courses|fromage|pain|bouteille/i.test(p.title))category='Achats';
+ if(/maison|jardin|bambou|réparer|travaux/i.test(p.title))category='Maison';
+ data.tasks.unshift({id:id(),title:p.title,date:p.date,priority:'normal',category,project:'',notes:'',subs:[],done:false,created:new Date().toISOString()});
+ document.getElementById('quickText').value='';persist();
+}
+function openEdit(task=null){
+ const t=task||{id:'',title:'',date:'',priority:'normal',category:'Personnel',project:'',notes:'',subs:[]};
+ for(const [el,key] of [['taskId','id'],['taskTitle','title'],['taskDate','date'],['taskPriority','priority'],['taskCategory','category'],['taskProject','project'],['taskNotes','notes']])document.getElementById(el).value=t[key]||'';
+ document.getElementById('taskSubs').value=(t.subs||[]).join('\n');
+ document.getElementById('dialogTitle').textContent=task?'Modifier la tâche':'Nouvelle tâche';
+ document.getElementById('editDialog').showModal();
+}
+function saveEdit(){
+ const tid=document.getElementById('taskId').value;
+ const t={id:tid||id(),title:document.getElementById('taskTitle').value.trim(),date:document.getElementById('taskDate').value,priority:document.getElementById('taskPriority').value,category:document.getElementById('taskCategory').value,project:document.getElementById('taskProject').value.trim(),notes:document.getElementById('taskNotes').value.trim(),subs:document.getElementById('taskSubs').value.split('\n').map(x=>x.trim()).filter(Boolean),done:false};
+ if(tid){let old=data.tasks.find(x=>x.id===tid);t.done=old?.done||false;data.tasks=data.tasks.map(x=>x.id===tid?t:x)}else data.tasks.unshift(t);
+ if(t.project&&!data.projects.includes(t.project))data.projects.push(t.project);
+ persist();
+}
+function setDone(tid){data.tasks=data.tasks.map(t=>t.id===tid?{...t,done:!t.done}:t);persist()}
+function delTask(tid){if(confirm('Supprimer cette tâche ?')){data.tasks=data.tasks.filter(t=>t.id!==tid);persist()}}
+function render(){
+ const now=today(),open=data.tasks.filter(t=>!t.done),late=open.filter(t=>t.date&&t.date<now);
+ document.getElementById('countOpen').textContent=open.length;document.getElementById('countLate').textContent=late.length;document.getElementById('countDone').textContent=data.tasks.length-open.length;
+ document.getElementById('todayLabel').textContent=new Date().toLocaleDateString('fr-BE',{weekday:'long',day:'numeric',month:'long'});
+ let list=data.tasks.filter(t=>filter==='all'?true:filter==='done'?t.done:filter==='late'?!t.done&&t.date&&t.date<now:filter==='today'?!t.done&&t.date===now:filter==='upcoming'?!t.done&&(!t.date||t.date>=now):true);
+ list.sort((a,b)=>(a.done-b.done)||((a.date||'9999').localeCompare(b.date||'9999'))||(a.priority==='high'?-1:1));
+ document.getElementById('listTitle').textContent=({all:'Mes tâches',today:"Aujourd'hui",upcoming:'À venir',late:'En retard',done:'Terminées'})[filter];
+ const root=document.getElementById('taskList');
+ root.innerHTML=list.length?list.map(t=>`<article class="task ${t.done?'done':''}"><input class="check" type="checkbox" ${t.done?'checked':''} onchange="setDone('${t.id}')"><div class="taskbody"><div class="tasktitle">${escapeHtml(t.title)}</div><div class="meta">${t.date?`<span class="${!t.done&&t.date<now?'overdue':''}">◷ ${niceDate(t.date)}</span>`:''}${t.category?`<span class="pill">${escapeHtml(t.category)}</span>`:''}${t.project?`<span class="pill">▦ ${escapeHtml(t.project)}</span>`:''}${t.priority==='high'?'<span class="pill">Prioritaire</span>':''}</div>${t.notes?`<div class="small" style="margin-top:7px">${escapeHtml(t.notes)}</div>`:''}${t.subs?.length?`<div class="small" style="margin-top:5px">↳ ${t.subs.map(escapeHtml).join(' · ')}</div>`:''}</div><div class="tasktools"><button class="iconbtn" aria-label="Modifier" onclick="openEdit(data.tasks.find(x=>x.id==='${t.id}'))">✎</button><button class="iconbtn" aria-label="Supprimer" onclick="delTask('${t.id}')">×</button></div></article>`).join(''):'<div class="empty">Rien ici pour le moment. Profite de ton esprit libre !</div>';
+ document.getElementById('projectList').innerHTML=data.projects.length?data.projects.map(p=>`<div class="projectrow"><span>${escapeHtml(p)}</span><span class="muted">${data.tasks.filter(t=>t.project===p&&!t.done).length} à faire</span></div>`).join(''):'<p class="muted">Aucun projet créé pour le moment.</p>';
+ document.getElementById('projectOptions').innerHTML=data.projects.map(p=>`<option value="${escapeHtml(p)}">`).join('');
+ document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===filter));
+}
+document.getElementById('addQuick').onclick=addQuick;
+document.getElementById('focusDictation').onclick=()=>document.getElementById('quickText').focus();
+document.getElementById('editForm').addEventListener('submit',e=>{if(e.submitter?.id==='saveTask'){e.preventDefault();saveEdit();document.getElementById('editDialog').close()}});
+document.getElementById('addProject').onclick=()=>{let p=document.getElementById('newProject').value.trim();if(p&&!data.projects.includes(p)){data.projects.push(p);document.getElementById('newProject').value='';persist()}};
+document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render()});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{currentView=b.dataset.view;['homeView','projectsView','settingsView'].forEach(v=>document.getElementById(v).hidden=v!==currentView);document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===b))});
+document.getElementById('exportData').onclick=()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mes-taches-sauvegarde.json';a.click();URL.revokeObjectURL(a.href);document.getElementById('backupStatus').textContent='Sauvegarde exportée.'};
+document.getElementById('importBtn').onclick=()=>document.getElementById('importFile').click();
+document.getElementById('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!Array.isArray(d.tasks)||!Array.isArray(d.projects))throw Error();if(confirm('Remplacer les données actuelles par cette sauvegarde ?')){data=d;persist();document.getElementById('backupStatus').textContent='Sauvegarde importée.'}}catch{alert('Fichier de sauvegarde invalide.')}};
+render();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script></body></html>
