@@ -112,44 +112,106 @@ function render(){
  document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===filter));
 }
 document.getElementById('addQuick').onclick=()=>{addQuick();voiceStatus.textContent='Tâche ajoutée. Tu peux dicter la suivante.'};
-// Dictée vocale directe lorsque le navigateur iPhone expose Web Speech API.
-const voiceButton=document.getElementById('voiceButton');
-const voiceStatus=document.getElementById('voiceStatus');
-const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
-let recognition=null, listening=false, finalTranscript='';
-function setVoiceState(active){
- listening=active;
- voiceButton.textContent=active?'⏹️ Arrêter la dictée':'🎙️ Dicter une tâche';
- voiceButton.setAttribute('aria-pressed',String(active));
- voiceButton.style.background=active?'#b54747':'#e9f0fb';
- voiceButton.style.color=active?'white':'#315c9b';
+// Dictée vocale directe : une nouvelle session à chaque utilisation.
+const voiceButton = document.getElementById('voiceButton');
+const voiceStatus = document.getElementById('voiceStatus');
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let recognition = null;
+let listening = false;
+let finalTranscript = '';
+
+function setVoiceState(active) {
+  listening = active;
+  voiceButton.textContent = active ? '⏹️ Arrêter la dictée' : '🎙️ Dicter une tâche';
+  voiceButton.setAttribute('aria-pressed', String(active));
+  voiceButton.style.background = active ? '#b54747' : '#e9f0fb';
+  voiceButton.style.color = active ? 'white' : '#315c9b';
 }
-if(!SpeechRecognition){
- voiceStatus.textContent='La dictée directe n’est pas prise en charge par ce navigateur. Utilise le micro du clavier iPhone, ou ouvre To Do dans une version de Safari compatible.';
- voiceButton.onclick=()=>{voiceStatus.textContent='Dictée directe indisponible ici. Appuie dans le champ de texte puis utilise le micro du clavier iPhone.';document.getElementById('quickText').focus()};
-}else{
- recognition=new SpeechRecognition();
- recognition.lang='fr-BE'; recognition.continuous=false; recognition.interimResults=true; recognition.maxAlternatives=1;
- recognition.onstart=()=>{finalTranscript='';setVoiceState(true);voiceStatus.textContent='Je t’écoute… Parle maintenant.'};
- recognition.onresult=e=>{
-  let interim='';
-  for(let i=e.resultIndex;i<e.results.length;i++){
-   const phrase=e.results[i][0].transcript;
-   if(e.results[i].isFinal) finalTranscript+=phrase+' '; else interim+=phrase;
+
+function startDictation() {
+  if (!SpeechRecognition) {
+    voiceStatus.textContent = 'La dictée directe n’est pas disponible. Utilise le micro du clavier iPhone.';
+    return;
   }
-  document.getElementById('quickText').value=(finalTranscript+interim).trim();
- };
- recognition.onerror=e=>{
-  setVoiceState(false);
-  const messages={ 'not-allowed':'L’accès au micro est refusé. Autorise le microphone pour ce site dans les réglages de Safari.', 'service-not-allowed':'Le service de reconnaissance vocale est bloqué par le navigateur.', 'no-speech':'Je n’ai rien entendu. Réessaie en parlant juste après avoir appuyé.', 'audio-capture':'Aucun microphone accessible. Vérifie les réglages du micro.' };
-  voiceStatus.textContent=messages[e.error]||('La dictée a échoué ('+e.error+'). Tu peux réessayer ou utiliser le micro du clavier.');
- };
- recognition.onend=()=>{setVoiceState(false);if(document.getElementById('quickText').value.trim())voiceStatus.textContent='Dictée terminée. Relis ta tâche, puis appuie sur « Ajouter la tâche ».';else if(!voiceStatus.textContent.includes('refusé')&&!voiceStatus.textContent.includes('échoué'))voiceStatus.textContent='Dictée arrêtée. Tu peux réessayer.'};
- voiceButton.onclick=()=>{
-  if(listening){recognition.stop();return;}
-  try{document.getElementById('quickText').value='';recognition.start()}catch(err){voiceStatus.textContent='Impossible de démarrer la dictée. Attends un instant puis réessaie.'}
- };
+
+  try {
+    const current = new SpeechRecognition();
+    recognition = current;
+    finalTranscript = '';
+
+    current.lang = 'fr-BE';
+    current.continuous = false;
+    current.interimResults = true;
+    current.maxAlternatives = 1;
+
+    current.onstart = () => {
+      setVoiceState(true);
+      voiceStatus.textContent = 'Je t’écoute… Parle maintenant.';
+    };
+
+    current.onresult = (event) => {
+      let interim = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const phrase = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += phrase + ' ';
+        } else {
+          interim += phrase;
+        }
+      }
+
+      document.getElementById('quickText').value =
+        (finalTranscript + interim).trim();
+    };
+
+    current.onerror = (event) => {
+      if (recognition !== current) return;
+
+      const messages = {
+        'not-allowed': 'Accès au micro refusé. Vérifie les autorisations.',
+        'service-not-allowed': 'Le service de reconnaissance vocale est bloqué.',
+        'no-speech': 'Je n’ai rien entendu. Réessaie.',
+        'audio-capture': 'Aucun microphone accessible.'
+      };
+
+      voiceStatus.textContent =
+        messages[event.error] || 'Erreur de dictée : ' + event.error;
+      setVoiceState(false);
+    };
+
+    current.onend = () => {
+      if (recognition !== current) return;
+
+      setVoiceState(false);
+      recognition = null;
+
+      if (document.getElementById('quickText').value.trim()) {
+        voiceStatus.textContent = 'Dictée terminée. Tu peux ajouter ta tâche.';
+      } else {
+        voiceStatus.textContent = 'Dictée terminée. Tu peux recommencer.';
+      }
+    };
+
+    current.start();
+
+  } catch (error) {
+    recognition = null;
+    setVoiceState(false);
+    voiceStatus.textContent = 'Impossible de démarrer. Réessaie dans un instant.';
+  }
 }
+
+voiceButton.onclick = () => {
+  if (listening && recognition) {
+    recognition.stop();
+    return;
+  }
+
+  document.getElementById('quickText').value = '';
+  startDictation();
+};
 document.getElementById('editForm').addEventListener('submit',e=>{if(e.submitter?.id==='saveTask'){e.preventDefault();saveEdit();document.getElementById('editDialog').close()}});
 document.getElementById('addProject').onclick=()=>{let p=document.getElementById('newProject').value.trim();if(p&&!data.projects.includes(p)){data.projects.push(p);document.getElementById('newProject').value='';persist()}};
 document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render()});
