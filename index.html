@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#172b4d"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Mes tâches</title>
+<title>To Do</title>
 <link rel="manifest" href="manifest.webmanifest">
 <style>
 :root{--navy:#172b4d;--blue:#315c9b;--bg:#f4f6fa;--card:#fff;--muted:#68758a;--line:#e4e9f0;--green:#21845b;--red:#b54747}
@@ -28,19 +28,19 @@ dialog{border:0;border-radius:20px;width:min(94vw,520px);padding:20px;box-shadow
 .small{font-size:12px;color:var(--muted);line-height:1.5}.projectrow{padding:12px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
 </style></head>
 <body>
-<header><h1>Mes tâches</h1><div class="sub" id="todayLabel">Garde l'esprit libre.</div></header>
+<header><h1>To Do</h1><div class="sub" id="todayLabel">Garde l'esprit libre.</div></header>
 <main>
 <section class="stats"><div class="stat"><strong id="countOpen">0</strong><span>À faire</span></div><div class="stat"><strong id="countLate">0</strong><span>En retard</span></div><div class="stat"><strong id="countDone">0</strong><span>Terminées</span></div></section>
 <section id="homeView">
 <div class="panel composer">
 <strong>Ajouter rapidement</strong>
-<p class="muted">Écris ou dicte naturellement. Exemple : « Acheter du fromage pour le souper cousa le 30 avril ».</p>
+<p class="muted">Appuie sur le micro et dicte ta tâche. Exemple : « Appeler le garagiste demain à 10 heures ».</p>
 <textarea id="quickText" placeholder="Qu'est-ce que tu dois faire ?"></textarea>
-<div class="actions"><button class="btn mic" id="focusDictation" type="button">🎙 Dictée iPhone</button><button class="btn full" id="addQuick" type="button">Ajouter la tâche</button></div>
-<div class="small" style="margin-top:8px">Astuce : touche le champ puis le micro du clavier Apple pour dicter. La dictée du clavier fonctionne directement dans Safari.</div>
+<div class="actions"><button class="btn mic full" id="voiceButton" type="button">🎙️ Dicter une tâche</button><button class="btn full" id="addQuick" type="button">Ajouter la tâche</button></div>
+<div class="small" id="voiceStatus" role="status" aria-live="polite" style="margin-top:8px">Appuie sur « Dicter une tâche », autorise le micro si demandé, puis parle.</div>
 </div>
 <div class="tabs" id="filters"><button class="tab active" data-filter="all">Toutes</button><button class="tab" data-filter="today">Aujourd'hui</button><button class="tab" data-filter="upcoming">À venir</button><button class="tab" data-filter="late">En retard</button><button class="tab" data-filter="done">Terminées</button></div>
-<h2 id="listTitle">Mes tâches</h2><div id="taskList"></div>
+<h2 id="listTitle">To Do</h2><div id="taskList"></div>
 </section>
 <section id="projectsView" hidden><h2>Mes projets</h2><div class="panel"><div class="field"><label>Nouveau projet</label><div class="actions"><input id="newProject" placeholder="Ex. Souper cousa" style="flex:1;min-width:0;border:1px solid var(--line);border-radius:10px;padding:10px"><button class="btn" id="addProject">Créer</button></div></div><div id="projectList"></div></div></section>
 <section id="settingsView" hidden><h2>Réglages et sauvegarde</h2><div class="panel"><p>Les tâches de cette première version sont enregistrées sur cet iPhone, dans le stockage local du navigateur.</p><p class="small">Pour éviter toute perte, exporte régulièrement une sauvegarde JSON. La synchronisation en ligne et les notifications planifiées nécessiteront une prochaine étape avec un service sécurisé.</p><div class="actions"><button class="btn full" id="exportData">Exporter mes tâches</button><button class="btn secondary full" id="importBtn">Importer</button><input id="importFile" type="file" accept="application/json" hidden></div><p class="small" id="backupStatus"></p></div></section>
@@ -111,8 +111,45 @@ function render(){
  document.getElementById('projectOptions').innerHTML=data.projects.map(p=>`<option value="${escapeHtml(p)}">`).join('');
  document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===filter));
 }
-document.getElementById('addQuick').onclick=addQuick;
-document.getElementById('focusDictation').onclick=()=>document.getElementById('quickText').focus();
+document.getElementById('addQuick').onclick=()=>{addQuick();voiceStatus.textContent='Tâche ajoutée. Tu peux dicter la suivante.'};
+// Dictée vocale directe lorsque le navigateur iPhone expose Web Speech API.
+const voiceButton=document.getElementById('voiceButton');
+const voiceStatus=document.getElementById('voiceStatus');
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null, listening=false, finalTranscript='';
+function setVoiceState(active){
+ listening=active;
+ voiceButton.textContent=active?'⏹️ Arrêter la dictée':'🎙️ Dicter une tâche';
+ voiceButton.setAttribute('aria-pressed',String(active));
+ voiceButton.style.background=active?'#b54747':'#e9f0fb';
+ voiceButton.style.color=active?'white':'#315c9b';
+}
+if(!SpeechRecognition){
+ voiceStatus.textContent='La dictée directe n’est pas prise en charge par ce navigateur. Utilise le micro du clavier iPhone, ou ouvre To Do dans une version de Safari compatible.';
+ voiceButton.onclick=()=>{voiceStatus.textContent='Dictée directe indisponible ici. Appuie dans le champ de texte puis utilise le micro du clavier iPhone.';document.getElementById('quickText').focus()};
+}else{
+ recognition=new SpeechRecognition();
+ recognition.lang='fr-BE'; recognition.continuous=false; recognition.interimResults=true; recognition.maxAlternatives=1;
+ recognition.onstart=()=>{finalTranscript='';setVoiceState(true);voiceStatus.textContent='Je t’écoute… Parle maintenant.'};
+ recognition.onresult=e=>{
+  let interim='';
+  for(let i=e.resultIndex;i<e.results.length;i++){
+   const phrase=e.results[i][0].transcript;
+   if(e.results[i].isFinal) finalTranscript+=phrase+' '; else interim+=phrase;
+  }
+  document.getElementById('quickText').value=(finalTranscript+interim).trim();
+ };
+ recognition.onerror=e=>{
+  setVoiceState(false);
+  const messages={ 'not-allowed':'L’accès au micro est refusé. Autorise le microphone pour ce site dans les réglages de Safari.', 'service-not-allowed':'Le service de reconnaissance vocale est bloqué par le navigateur.', 'no-speech':'Je n’ai rien entendu. Réessaie en parlant juste après avoir appuyé.', 'audio-capture':'Aucun microphone accessible. Vérifie les réglages du micro.' };
+  voiceStatus.textContent=messages[e.error]||('La dictée a échoué ('+e.error+'). Tu peux réessayer ou utiliser le micro du clavier.');
+ };
+ recognition.onend=()=>{setVoiceState(false);if(document.getElementById('quickText').value.trim())voiceStatus.textContent='Dictée terminée. Relis ta tâche, puis appuie sur « Ajouter la tâche ».';else if(!voiceStatus.textContent.includes('refusé')&&!voiceStatus.textContent.includes('échoué'))voiceStatus.textContent='Dictée arrêtée. Tu peux réessayer.'};
+ voiceButton.onclick=()=>{
+  if(listening){recognition.stop();return;}
+  try{document.getElementById('quickText').value='';recognition.start()}catch(err){voiceStatus.textContent='Impossible de démarrer la dictée. Attends un instant puis réessaie.'}
+ };
+}
 document.getElementById('editForm').addEventListener('submit',e=>{if(e.submitter?.id==='saveTask'){e.preventDefault();saveEdit();document.getElementById('editDialog').close()}});
 document.getElementById('addProject').onclick=()=>{let p=document.getElementById('newProject').value.trim();if(p&&!data.projects.includes(p)){data.projects.push(p);document.getElementById('newProject').value='';persist()}};
 document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{filter=b.dataset.filter;render()});

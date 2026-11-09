@@ -1,9 +1,11 @@
 {
-  "name": "Mes tâches",
-  "short_name": "Mes tâches",
-  "start_url": "./index.html",
+  "name": "To Do",
+  "short_name": "To Do",
+  "lang": "fr-BE",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f4f6fa",
   "theme_color": "#172b4d",
-  "icons": []
+  "description": "Application personnelle de gestion des tâches"
 }
