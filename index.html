@@ -112,94 +112,79 @@ function render(){
  document.querySelectorAll('[data-filter]').forEach(b=>b.classList.toggle('active',b.dataset.filter===filter));
 }
 document.getElementById('addQuick').onclick=()=>{addQuick();voiceStatus.textContent='Tâche ajoutée. Tu peux dicter la suivante.'};
-// Dictée vocale directe : une nouvelle session à chaque utilisation.
+// Dictée vocale : nouvelle session à chaque utilisation.
 const voiceButton = document.getElementById('voiceButton');
 const voiceStatus = document.getElementById('voiceStatus');
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 let recognition = null;
 let listening = false;
-let finalTranscript = '';
+let starting = false;
 
 function setVoiceState(active) {
   listening = active;
   voiceButton.textContent = active ? '⏹️ Arrêter la dictée' : '🎙️ Dicter une tâche';
-  voiceButton.setAttribute('aria-pressed', String(active));
   voiceButton.style.background = active ? '#b54747' : '#e9f0fb';
   voiceButton.style.color = active ? 'white' : '#315c9b';
 }
 
 function startDictation() {
   if (!SpeechRecognition) {
-    voiceStatus.textContent = 'La dictée directe n’est pas disponible. Utilise le micro du clavier iPhone.';
+    voiceStatus.textContent = 'Dictée directe indisponible. Utilise le micro du clavier iPhone.';
     return;
   }
 
-  try {
-    const current = new SpeechRecognition();
-    recognition = current;
-    finalTranscript = '';
+  if (starting || listening) return;
+  starting = true;
 
-    current.lang = 'fr-BE';
-    current.continuous = false;
-    current.interimResults = true;
-    current.maxAlternatives = 1;
+  const session = new SpeechRecognition();
+  recognition = session;
 
-    current.onstart = () => {
-      setVoiceState(true);
-      voiceStatus.textContent = 'Je t’écoute… Parle maintenant.';
-    };
+  session.lang = 'fr-BE';
+  session.continuous = false;
+  session.interimResults = true;
+  session.maxAlternatives = 1;
 
-    current.onresult = (event) => {
-      let interim = '';
+  session.onstart = () => {
+    starting = false;
+    setVoiceState(true);
+    voiceStatus.textContent = 'Je t’écoute…';
+  };
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const phrase = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += phrase + ' ';
-        } else {
-          interim += phrase;
-        }
-      }
+  session.onresult = (event) => {
+    let text = '';
+    for (let i = 0; i < event.results.length; i++) {
+      text += event.results[i][0].transcript;
+      if (event.results[i].isFinal) text += ' ';
+    }
+    document.getElementById('quickText').value = text.trim();
+  };
 
-      document.getElementById('quickText').value =
-        (finalTranscript + interim).trim();
-    };
-
-    current.onerror = (event) => {
-      if (recognition !== current) return;
-
-      const messages = {
-        'not-allowed': 'Accès au micro refusé. Vérifie les autorisations.',
-        'service-not-allowed': 'Le service de reconnaissance vocale est bloqué.',
-        'no-speech': 'Je n’ai rien entendu. Réessaie.',
-        'audio-capture': 'Aucun microphone accessible.'
-      };
-
-      voiceStatus.textContent =
-        messages[event.error] || 'Erreur de dictée : ' + event.error;
-      setVoiceState(false);
-    };
-
-    current.onend = () => {
-      if (recognition !== current) return;
-
-      setVoiceState(false);
-      recognition = null;
-
-      if (document.getElementById('quickText').value.trim()) {
-        voiceStatus.textContent = 'Dictée terminée. Tu peux ajouter ta tâche.';
-      } else {
-        voiceStatus.textContent = 'Dictée terminée. Tu peux recommencer.';
-      }
-    };
-
-    current.start();
-
-  } catch (error) {
-    recognition = null;
+  session.onerror = (event) => {
+    starting = false;
     setVoiceState(false);
-    voiceStatus.textContent = 'Impossible de démarrer. Réessaie dans un instant.';
+    voiceStatus.textContent = 'Erreur de dictée : ' + event.error + '. Réessaie.';
+  };
+
+  session.onend = () => {
+    starting = false;
+    setVoiceState(false);
+    if (recognition === session) recognition = null;
+
+    voiceStatus.textContent =
+      document.getElementById('quickText').value.trim()
+        ? 'Dictée terminée. Tu peux ajouter ta tâche.'
+        : 'Écoute terminée. Tu peux recommencer.';
+  };
+
+  try {
+    document.getElementById('quickText').value = '';
+    session.start();
+  } catch (error) {
+    starting = false;
+    setVoiceState(false);
+    recognition = null;
+    voiceStatus.textContent = 'Impossible de démarrer. Réessaie dans quelques secondes.';
   }
 }
 
@@ -208,8 +193,6 @@ voiceButton.onclick = () => {
     recognition.stop();
     return;
   }
-
-  document.getElementById('quickText').value = '';
   startDictation();
 };
 document.getElementById('editForm').addEventListener('submit',e=>{if(e.submitter?.id==='saveTask'){e.preventDefault();saveEdit();document.getElementById('editDialog').close()}});
